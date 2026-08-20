@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>7000單字卡與測驗</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --success: #22c55e;
+            --danger: #ef4444;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { font-size: 1.4rem; margin-bottom: 10px; color: var(--primary); }
+        .nav-tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .nav-tabs button {
+            flex: 1;
+            padding: 10px 5px;
+            border: none;
+            background: #e2e8f0;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .nav-tabs button.active { background: var(--primary); color: white; }
+        .tab-content { display: none; width: 100%; max-width: 400px; }
+        .tab-content.active { display: block; }
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            text-align: center;
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            margin-bottom: 15px;
+            cursor: pointer;
+        }
+        .card-word { font-size: 1.8rem; font-weight: bold; }
+        .card-translation { font-size: 1.2rem; color: #64748b; margin-top: 10px; display: none; }
+        .card.show .card-translation { display: block; }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 8px;
+            font-weight: bold;
+        }
+        .btn-success { background: var(--success); }
+        .btn-danger { background: var(--danger); }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+        .result-box {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        .score-board {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>高中 7000 單字助手</h1>
+
+    <div class="nav-tabs">
+        <button class="active" onclick="switchTab('flashcard')">單字卡</button>
+        <button onclick="switchTab('quiz')">抽考測驗</button>
+        <button onclick="switchTab('wrong')">錯題本</button>
+        <button onclick="switchTab('dict')">字典/新增</button>
+    </div>
+
+    <!-- 1. 單字卡 -->
+    <div id="flashcard" class="tab-content active">
+        <div class="card" id="wordCard" onclick="toggleCard()">
+            <div class="card-word" id="displayWord">載入中...</div>
+            <div class="card-translation" id="displayTrans"></div>
+        </div>
+        <button class="btn" onclick="speakCurrentWord()">🔊 發音朗讀</button>
+        <button class="btn" onclick="nextCard()" style="background: #0ea5e9;">下一張單字</button>
+    </div>
+
+    <!-- 2. 抽考測驗 -->
+    <div id="quiz" class="tab-content">
+        <div class="score-board">
+            <span style="color: var(--success);">答對: <span id="scoreCorrect">0</span></span>
+            <span style="color: var(--danger);">答錯: <span id="scoreWrong">0</span></span>
+        </div>
+        <div class="card">
+            <div class="card-word" id="quizQuestion">題目載入中...</div>
+            <p style="color: #94a3b8; font-size: 0.8rem;">請輸入英文翻譯：</p>
+        </div>
+        <input type="text" id="quizAnswer" placeholder="請輸入英文單字..." autocomplete="off">
+        <button class="btn" onclick="checkAnswer()">提交答案</button>
+        <div id="quizFeedback" class="result-box" style="display:none;"></div>
+    </div>
+
+    <!-- 3. 錯題本 -->
+    <div id="wrong" class="tab-content">
+        <h3>複習答錯的單字</h3>
+        <div id="wrongList">目前沒有錯題！加把勁！</div>
+        <button class="btn btn-danger" onclick="clearWrongList()" style="margin-top: 15px;">清空錯題本</button>
+    </div>
+
+    <!-- 4. 辭典與自動新增 -->
+    <div id="dict" class="tab-content">
+        <input type="text" id="dictInput" placeholder="查詢或輸入英文單字..." oninput="searchDict()">
+        <button class="btn" onclick="autoTranslate()">自動翻譯並加入庫</button>
+        <div id="dictResults"></div>
+    </div>
+
+    <script>
+        let vocabulary = [
+            { word: "abandon", translation: "放棄" },
+            { word: "ability", translation: "能力" },
+            { word: "abnormal", translation: "不正常的" },
+            { word: "abolish", translation: "廢除" },
+            { word: "absolute", translation: "絕對的" },
+            { word: "environment", translation: "環境" },
+            { word: "technology", translation: "科技" },
+            { word: "opportunity", translation: "機會" }
+        ];
+
+        let wrongWords = JSON.parse(localStorage.getItem('wrongWords')) || [];
+        let currentIndex = 0;
+        let quizIndex = 0;
+        let correctCount = 0;
+        let wrongCount = 0;
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-tabs button').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+
+            if(tabId === 'flashcard') updateCardUI();
+            if(tabId === 'quiz') startNewQuiz();
+            if(tabId === 'wrong') renderWrongList();
+        }
+
+        // --- 單字卡邏輯 ---
+        function updateCardUI() {
+            document.getElementById('wordCard').classList.remove('show');
+            document.getElementById('displayWord').innerText = vocabulary[currentIndex].word;
+            document.getElementById('displayTrans').innerText = vocabulary[currentIndex].translation;
+        }
+
+        function toggleCard() {
+            document.getElementById('wordCard').classList.toggle('show');
+        }
+
+        function nextCard() {
+            currentIndex = Math.floor(Math.random() * vocabulary.length);
+            updateCardUI();
+        }
+
+        function speakCurrentWord() {
+            speak(vocabulary[currentIndex].word);
+        }
+
+        function speak(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // --- 測驗邏輯 ---
+        function startNewQuiz() {
+            quizIndex = Math.floor(Math.random() * vocabulary.length);
+            document.getElementById('quizQuestion').innerText = vocabulary[quizIndex].translation;
+            document.getElementById('quizAnswer').value = '';
+            document.getElementById('quizFeedback').style.display = 'none';
+        }
+
+        function checkAnswer() {
+            const userAns = document.getElementById('quizAnswer').value.trim().toLowerCase();
+            const currentItem = vocabulary[quizIndex];
+            const feedback = document.getElementById('quizFeedback');
+            feedback.style.display = 'block';
+
+            if (userAns === currentItem.word.toLowerCase()) {
+                correctCount++;
+                feedback.innerHTML = `<b style="color: var(--success);">正確！</b>`;
+                speak(currentItem.word);
+                setTimeout(startNewQuiz, 1200);
+            } else {
+                wrongCount++;
+                feedback.innerHTML = `<b style="color: var(--danger);">答案錯誤！</b> 正確答案是：<b>${currentItem.word}</b>`;
+                speak(currentItem.word);
+                
+                // 加入錯題本
+                if (!wrongWords.some(item => item.word === currentItem.word)) {
+                    wrongWords.push(currentItem);
+                    localStorage.setItem('wrongWords', JSON.stringify(wrongWords));
+                }
+            }
+
+            document.getElementById('scoreCorrect').innerText = correctCount;
+            document.getElementById('scoreWrong').innerText = wrongCount;
+        }
+
+        // --- 錯題本邏輯 ---
+        function renderWrongList() {
+            const container = document.getElementById('wrongList');
+            if (wrongWords.length === 0) {
+                container.innerHTML = '<div class="result-box">目前沒有錯題紀錄！</div>';
+                return;
+            }
+            container.innerHTML = '';
+            wrongWords.forEach(item => {
+                container.innerHTML += `
+                    <div class="result-box" style="display:flex; justify-content:space-between; align-items:center;">
+                        <div><b>${item.word}</b> : ${item.translation}</div>
+                        <button onclick="speak('${item.word}')" style="border:none; background:none; cursor:pointer;">🔊</button>
+                    </div>`;
+            });
+        }
+
+        function clearWrongList() {
+            wrongWords = [];
+            localStorage.removeItem('wrongWords');
+            renderWrongList();
+        }
+
+        // --- 字典與 API 新增 ---
+        async function autoTranslate() {
+            const word = document.getElementById('dictInput').value.trim();
+            if (!word) return alert('請輸入單字');
+            
+            try {
+                const response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|zh-TW`);
+                const data = await response.json();
+                const translation = data.responseData.translatedText;
+
+                vocabulary.push({ word: word, translation: translation });
+                alert(`已將 「${word} : ${translation}」 加入單字庫！`);
+                document.getElementById('dictInput').value = '';
+            } catch (error) {
+                alert('自動翻譯失敗，請檢查網路。');
+            }
+        }
+
+        function searchDict() {
+            const keyword = document.getElementById('dictInput').value.trim().toLowerCase();
+            const container = document.getElementById('dictResults');
+            container.innerHTML = '';
+            if (!keyword) return;
+
+            const matches = vocabulary.filter(item => 
+                item.word.toLowerCase().includes(keyword) || item.translation.includes(keyword)
+            );
+
+            matches.forEach(item => {
+                container.innerHTML += `<div class="result-box"><b>${item.word}</b> : ${item.translation}</div>`;
+            });
+        }
+
+        // 初始化
+        updateCardUI();
+    </script>
+</body>
+</html>
